@@ -22,14 +22,23 @@ export class ArgoCDClient {
     this.client = new HttpClient(this.baseUrl, this.apiToken);
   }
 
-  public async listApplications(params?: { search?: string; limit?: number; offset?: number }) {
+  // Modified by Trusk - Added syncStatus/healthStatus filtering
+  public async listApplications(params?: {
+    search?: string;
+    limit?: number;
+    offset?: number;
+    syncStatus?: string;
+    healthStatus?: string;
+    excludeSyncStatus?: string;
+    excludeHealthStatus?: string;
+  }) {
     const { body } = await this.client.get<V1alpha1ApplicationList>(
       `/api/v1/applications`,
       params?.search ? { search: params.search } : undefined
     );
 
     // Strip heavy fields to reduce token usage
-    const strippedItems =
+    let strippedItems =
       body.items?.map((app) => ({
         metadata: {
           name: app.metadata?.name,
@@ -49,7 +58,27 @@ export class ArgoCDClient {
         }
       })) ?? [];
 
-    // Apply pagination
+    // Client-side filtering by status (ArgoCD API doesn't support these filters)
+    if (params?.syncStatus) {
+      strippedItems = strippedItems.filter((app) => app.status?.sync?.status === params.syncStatus);
+    }
+    if (params?.healthStatus) {
+      strippedItems = strippedItems.filter(
+        (app) => app.status?.health?.status === params.healthStatus
+      );
+    }
+    if (params?.excludeSyncStatus) {
+      strippedItems = strippedItems.filter(
+        (app) => app.status?.sync?.status !== params.excludeSyncStatus
+      );
+    }
+    if (params?.excludeHealthStatus) {
+      strippedItems = strippedItems.filter(
+        (app) => app.status?.health?.status !== params.excludeHealthStatus
+      );
+    }
+
+    // Apply pagination after filtering
     const start = params?.offset ?? 0;
     const end = params?.limit ? start + params.limit : strippedItems.length;
     const items = strippedItems.slice(start, end);

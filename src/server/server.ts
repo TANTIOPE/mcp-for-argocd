@@ -31,9 +31,10 @@ export class Server extends McpServer {
         .toLowerCase() === 'true';
 
     // Always register read/query tools
+    // Modified by Trusk - Added syncStatus/healthStatus filtering
     this.addJsonOutputTool(
       'list_applications',
-      'list_applications returns list of applications',
+      'list_applications returns list of applications with optional filtering by sync/health status',
       {
         search: z
           .string()
@@ -56,13 +57,37 @@ export class Server extends McpServer {
           .optional()
           .describe(
             'Number of applications to skip before returning results. Use with limit for pagination. Optional.'
+          ),
+        syncStatus: z
+          .enum(['Synced', 'OutOfSync', 'Unknown'])
+          .optional()
+          .describe('Filter to only include apps with this sync status. Optional.'),
+        healthStatus: z
+          .enum(['Healthy', 'Degraded', 'Progressing', 'Missing', 'Suspended', 'Unknown'])
+          .optional()
+          .describe('Filter to only include apps with this health status. Optional.'),
+        excludeSyncStatus: z
+          .enum(['Synced', 'OutOfSync', 'Unknown'])
+          .optional()
+          .describe(
+            'Exclude apps with this sync status (e.g., excludeSyncStatus="Synced" returns only problematic apps). Optional.'
+          ),
+        excludeHealthStatus: z
+          .enum(['Healthy', 'Degraded', 'Progressing', 'Missing', 'Suspended', 'Unknown'])
+          .optional()
+          .describe(
+            'Exclude apps with this health status (e.g., excludeHealthStatus="Healthy" returns only unhealthy apps). Optional.'
           )
       },
-      async ({ search, limit, offset }) =>
+      async ({ search, limit, offset, syncStatus, healthStatus, excludeSyncStatus, excludeHealthStatus }) =>
         await this.argocdClient.listApplications({
           search: search ?? undefined,
           limit,
-          offset
+          offset,
+          syncStatus,
+          healthStatus,
+          excludeSyncStatus,
+          excludeHealthStatus
         })
     );
     this.addJsonOutputTool(
